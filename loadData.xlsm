@@ -1,0 +1,273 @@
+Sub loadData()
+
+Dim myFile As String, text As String, textline As String, Pos As String, cell As String, num As Integer, dispPos As String, numDig As Integer, isNeg As Integer
+Dim textPos As Integer, posCol As String, str As String
+
+myFile = Application.GetOpenFilename()
+
+If myFile = "False" Then End 'End macro execution if user clicks "Cancel" on load file window'
+
+Open myFile For Input As #1
+
+Do Until EOF(1)
+    Line Input #1, textline
+    text = text & textline
+Loop
+
+Close #1
+
+'Check to make sure user didn't try to open an empty or corrupt datasheet'
+If text = "" Then
+MsgBox ("You just tried to load an empty datasheet.")
+End
+ElseIf text = "Execution terminated by fatal error" Then
+MsgBox ("You just tried to load a corrupt datasheet. I'm sorry. I'm afraid I can't do that.")
+End
+End If
+
+posCol = "B"
+
+dataColA = numToLet(getCol())
+dataColB = numToLet(getCol() + 1)
+
+'Print Va Data'
+vaData = getData(text, posCol, dataColA, "A")
+'Print Vb Data'
+vbData = getData(text, posCol, dataColB, "B")
+
+'Find and print the file extension string (everything after ":" in the data sheet and before the next space)'
+extNum = findExtNum(text)
+prntExtNum (extNum)
+
+'Print Serial Number'
+SN = prntSN(text)
+
+End Sub
+
+'Print Serial Number'
+Public Function prntSN(text)
+
+snCol = numToLet(getCol() + 4)
+snRow = 4
+
+dispPos = concatCell(snRow, snCol) 'Find what cell to print SN in'
+
+snNum = getSN(text) + 15 '15 is the number of characters in "Serial Number  "'
+
+snLen = getSNLen(text, snNum)
+
+Range(dispPos).Value = Mid(text, snNum, snLen) 'Print the SN'
+
+End Function
+
+'Get Serial Number from text'
+Public Function getSN(text) As Integer
+
+    getSN = InStr(text, "Serial Number  ")
+
+End Function
+
+'Find the number of characters in the SN field'
+'Inputs are the original data sheet text and the index of where the SN field starts'
+'Outputs number of characters in the SN field before the next space'
+Public Function getSNLen(str, snNum) As Integer
+
+    snText = str 'make a new copy of text to prevent original from being altered'
+    newSNText = Right(snText, Len(snText) - (snNum - 1)) 'create a new string that consists of data sheet starting at SN'
+    getSNLen = findNextSpace(newSNText)
+
+End Function
+
+Public Function getData(text, posCol, dataCol, dataType)
+
+tempText = text 'maintain original copy of text, tempText will be shortened during search'
+
+For num = 9 To 19
+    cell = concatCell(num, posCol)
+    dispPos = concatCell(num, dataCol)
+    Pos = getPos(cell)
+    isNeg = checkFirstChar(Pos) 'Checks Pos to see if there's a leading "-"'
+    If isNeg <> 0 Then
+        Pos = addSpace(Pos)
+    End If
+        
+    posText = InStr(tempText, Pos)
+    
+    If posText = 0 Then 'Checks whether spreadsheet position was found on datasheet'
+    MsgBox ("One or more of the positions you have on your datasheet doesn't match those on your spreadsheet.")
+    End
+    End If
+    
+    newStr = Right(tempText, Len(tempText) - (posText + Len(Pos) - 1)) 'newStr starts with leading spaces and next data to print'
+    
+    nextDataIndex = findNextChar(newStr) 'Find how many leading spaces are in the string'
+    
+    dataStr = Right(newStr, Len(newStr) - nextDataIndex) 'dataStr starts with the next data value in column Va'
+    
+    If dataType = "B" Then 'If printing Vb data, need to get past Va column data'
+        nextDataIndex = findNextSpace(dataStr) 'Gets number of chars in Va'
+        dataStr = Right(dataStr, Len(dataStr) - nextDataIndex) 'Truncates leading Va characters off string'
+        nextDataIndex = findNextChar(dataStr) 'Gets number of leading spaces'
+        dataStr = Right(dataStr, Len(dataStr) - nextDataIndex) 'Truncates leading spaces off string'
+    End If
+    
+    numDig = findNextSpace(dataStr) 'find number of digits in data value'
+            
+    Range(dispPos).Value = Left(dataStr, numDig)
+    
+    tempText = Right(tempText, Len(tempText) - posText)
+    
+Next num
+
+End Function
+
+Public Function getPos(cell) As String
+
+    getPos = Range(cell).text
+
+End Function
+
+Public Function concatCell(num, col) As String
+
+    concatCell = col & num
+
+End Function
+
+'Checks a string to see if the first character is a "-", returns 0 if true, 1 if false'
+Public Function checkFirstChar(str) As Integer
+    
+    Dim testChar As String
+    
+    testChar = Left(str, 1)
+    
+    If testChar <> "-" Then
+        checkFirstChar = 1
+    
+    Else:
+        checkFirstChar = 0
+    End If
+        
+
+End Function
+
+'Adds a leading space to a string'
+Public Function addSpace(str) As String
+
+    addSpace = " " & str
+
+End Function
+
+
+'Checks which column a clicked button is in'
+Public Function getCol() As Integer
+
+    Dim b As Object, cs As Integer
+    Set b = ActiveSheet.Buttons(Application.Caller)
+    With b.TopLeftCell
+        getCol = .Column
+    End With
+    
+End Function
+
+'Convert number to excel Column letter(s)'
+Public Function numToLet(num) As String
+
+    Dim vArr
+    vArr = Split(Cells(1, num).Address(True, False), "$")
+    numToLet = vArr(0)
+
+End Function
+
+
+'Finds the next space in a string'
+'Input is a string'
+'Output is number of characters at beginning of string until the first space'
+Public Function findNextSpace(str) As Integer
+
+    Dim count As Integer
+    Dim newStr As String
+
+    newStr = str 'Make a copy of the original string (prevents original from being altered)'
+    count = 0
+    
+    Do While Asc(Left(newStr, 1)) <> 32
+        newStr = Right(str, Len(newStr) - 1)
+        count = count + 1
+    Loop
+    
+    findNextSpace = count
+
+End Function
+
+'Finds the next character in a string'
+'Input is a string'
+'Output is number of characters at beginning of string until the first character'
+Public Function findNextChar(str) As Integer
+
+    Dim count As Integer
+    Dim newStr As String
+
+    count = 0
+    newStr = str 'Make a copy of the original string (prevents original from being altered)'
+    
+    Do While Asc(Left(newStr, 1)) = 32
+        newStr = Right(newStr, Len(newStr) - 1)
+        count = count + 1
+    Loop
+    
+    findNextChar = count
+
+End Function
+
+'Find the next colon (:) in a string'
+'Input is a string'
+'Output is number of characters/spaces at beginning of string until the next :'
+Public Function findNextColon(str) As Integer
+
+    Dim count As Integer
+    Dim newStr As String
+    
+    count = 0
+    newStr = str 'Make a copy of the original string (prevents original from being altered'
+    
+    Do While Asc(Left(newStr, 1)) <> 58
+        newStr = Right(newStr, Len(newStr) - 1)
+        count = count + 1
+    Loop
+    
+    findNextColon = count
+End Function
+
+'Find the File extension number'
+'Input is data sheet'
+'Output is file extension number as a string'
+Public Function findExtNum(str) As String
+    
+    Dim extNumStr As String
+    
+    extNumStr = str 'Make a copy of the input string (prevents input string from being altered)'
+    
+    datePos = InStr(extNumStr, "Date:") 'use placement of Date: string to find extension number'
+    extNumStr = Right(extNumStr, Len(extNumStr) - datePos - 4) 'truncate everything up to and including the "Date:" marker'
+    findCol = findNextColon(extNumStr) 'find where the next colon in the string is - there are 2 before the extension number'
+    newStr = Right(extNumStr, Len(extNumStr) - 1 - findCol) 'newStr consists of the file from 2 colons before the extension number until the end of the file'
+    nextCol = findNextColon(newStr) 'find where the next colon in the string is - this is the one right before the extension number'
+    newNewStr = Right(newStr, Len(newStr) - 1 - nextCol) 'newNewStr consists of the file from the extension number until the end of the file'
+    numToSpace = findNextSpace(newNewStr) 'how many digits/letters long is the extension number'
+    findExtNum = Left(newNewStr, numToSpace) 'the isolated extension number'
+    
+End Function
+
+
+'Prints the extension number to the correct cell'
+'Input is extension number'
+Public Function prntExtNum(extNum)
+
+extNumRow = 6
+extNumCol = numToLet(getCol() + 4) 'gets the column of the button that was clicked and adds 4'
+
+dispPos = concatCell(extNumRow, extNumCol) 'Find what cell to print extension number in'
+
+Range(dispPos).Value = extNum 'Print the extension number'
+
+End Function
